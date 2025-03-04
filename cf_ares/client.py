@@ -2,13 +2,16 @@
 Main client implementation for CF-Ares.
 """
 
+import json
+import os
+import time
 from typing import Any, Dict, List, Optional, Union
 
 from cf_ares.engines.base import BaseEngine
 from cf_ares.engines.curl import CurlEngine
 from cf_ares.engines.selenium import SeleniumBaseEngine
 from cf_ares.engines.undetected import UndetectedEngine
-from cf_ares.exceptions import AresError, CloudflareError
+from cf_ares.exceptions import AresError, CloudflareError, CloudflareChallengeFailed, CloudflareSessionExpired
 from cf_ares.utils.session import SessionManager
 
 
@@ -163,6 +166,172 @@ class AresClient:
             self._curl_engine.set_cookies(cookies)
             self._curl_engine.set_headers(headers)
 
+    def solve_challenge(self, url: str, max_retries: int = 3) -> AresResponse:
+        """
+        显式执行 Cloudflare 挑战
+        
+        参数:
+            url (str): 要访问的 URL
+            max_retries (int): 最大重试次数
+            
+        返回:
+            AresResponse: 响应对象
+            
+        抛出:
+            CloudflareChallengeFailed: 如果挑战失败
+        """
+        self._initialize()
+        
+        if not self._browser_engine:
+            raise AresError("Browser engine not initialized")
+            
+        retries = 0
+        last_error = None
+        
+        while retries < max_retries:
+            try:
+                # 使用浏览器引擎访问 URL
+                self._browser_engine.get(url)
+                
+                # 等待 Cloudflare 挑战完成
+                self._browser_engine.wait_for_cloudflare()
+                
+                # 提取会话信息
+                cookies = self._browser_engine.get_cookies()
+                headers = self._browser_engine.get_headers()
+                
+                # 更新会话管理器
+                self._session_manager.update(url, cookies, headers)
+                
+                # 应用会话到 curl 引擎
+                if self._curl_engine:
+                    self._curl_engine.set_cookies(cookies)
+                    self._curl_engine.set_headers(headers)
+                
+                # 使用 curl 引擎发送请求，验证会话是否有效
+                response = self._curl_engine.request("GET", url)
+                
+                # 如果响应中包含 Cloudflare 挑战页面，则认为挑战失败
+                if "challenge" in response.text.lower() or "cloudflare" in response.text.lower():
+                    raise CloudflareChallengeFailed("Cloudflare 挑战失败，响应中包含挑战页面")
+                
+                return AresResponse(response)
+            except Exception as e:
+                last_error = e
+                retries += 1
+                if self.debug:
+                    print(f"Cloudflare 挑战失败，重试 {retries}/{max_retries}: {str(e)}")
+                time.sleep(2)  # 等待一段时间后重试
+        
+        # 所有重试都失败
+        raise CloudflareChallengeFailed(f"无法通过 Cloudflare 挑战，最大重试次数已用尽: {str(last_error)}")
+
+    def get_session_info(self, url: Optional[str] = None) -> Dict[str, Any]:
+        """
+        获取当前会话信息
+        
+        参数:
+            url (str, optional): 要获取会话信息的 URL。如果为 None，则返回所有会话信息。
+            
+        返回:
+            dict: 包含 cookies、headers 等会话信息的字典
+        """
+        if not self._initialized:
+            self._initialize()
+            
+        if url:
+            cookies = self._session_manager.get_cookies(url)
+            headers = self._session_manager.get_headers(url)
+            
+            if not cookies or not headers:
+                return {}
+                
+            return {
+                "cookies": cookies,
+                "headers": headers,
+                "timestamp": time.time(),
+                "url": url
+            }
+        else:
+            # 返回所有会话信息
+            result = {}
+            for domain, session in self._session_manager.sessions.items():
+                result[domain] = {
+                    "cookies": session["cookies"],
+                    "headers": session["headers"],
+                    "timestamp": session["timestamp"],
+                }
+            return result
+
+    def set_session_info(self, session_info: Dict[str, Any], url: Optional[str] = None) -> None:
+        """
+        设置会话信息
+        
+        参数:
+            session_info (dict): 包含 cookies、headers 等会话信息的字典
+            url (str, optional): 要设置会话信息的 URL。如果为 None，则使用 session_info 中的 url。
+        """
+        if not self._initialized:
+            self._initialize()
+            
+        if not url and "url" in session_info:
+            url = session_info["url"]
+            
+        if not url:
+            raise ValueError("必须提供 url 参数或在 session_info 中包含 url 字段")
+            
+        cookies = session_info.get("cookies", {})
+        headers = session_info.get("headers", {})
+        
+        # 更新会话管理器
+        self._session_manager.update(url, cookies, headers)
+        
+        # 应用会话到 curl 引擎
+        if self._curl_engine:
+            self._curl_engine.set_cookies(cookies)
+            self._curl_engine.set_headers(headers)
+
+    def save_session(self, file_path: str, url: Optional[str] = None) -> None:
+        """
+        将当前会话保存到文件
+        
+        参数:
+            file_path (str): 文件路径
+            url (str, optional): 要保存会话的 URL。如果为 None，则保存所有会话。
+        """
+        session_info = self.get_session_info(url)
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(session_info, f, indent=2)
+
+    def load_session(self, file_path: str) -> None:
+        """
+        从文件加载会话
+        
+        参数:
+            file_path (str): 文件路径
+        """
+        with open(file_path, "r", encoding="utf-8") as f:
+            session_info = json.load(f)
+            
+        if isinstance(session_info, dict):
+            if "cookies" in session_info and "url" in session_info:
+                # 单个会话
+                self.set_session_info(session_info)
+            else:
+                # 多个会话
+                for domain, info in session_info.items():
+                    if "cookies" in info and "headers" in info:
+                        url = f"https://{domain}"
+                        self.set_session_info({
+                            "cookies": info["cookies"],
+                            "headers": info["headers"],
+                            "url": url
+                        })
+
     def _request(
         self,
         method: str,
@@ -187,6 +356,9 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
         self._initialize()
 
@@ -210,20 +382,10 @@ class AresClient:
             )
             return AresResponse(response)
         except Exception as e:
-            # If request fails, try to handle Cloudflare again
-            if "cloudflare" in str(e).lower():
-                self._handle_cloudflare(url)
-                # Retry request
-                response = self._curl_engine.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    data=data,
-                    json=json,
-                    headers=headers,
-                    **kwargs,
-                )
-                return AresResponse(response)
+            # If request fails, check if it's a Cloudflare issue
+            error_str = str(e).lower()
+            if "cloudflare" in error_str or "challenge" in error_str or "captcha" in error_str:
+                raise CloudflareSessionExpired("Cloudflare 会话已过期，请重新执行 solve_challenge 方法") from e
             raise
 
     def get(
@@ -244,6 +406,9 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
         return self._request("GET", url, params=params, headers=headers, **kwargs)
 
@@ -267,6 +432,9 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
         return self._request(
             "POST", url, data=data, json=json, headers=headers, **kwargs
@@ -276,7 +444,6 @@ class AresClient:
         self,
         url: str,
         data: Optional[Any] = None,
-        json: Optional[Any] = None,
         headers: Optional[Dict[str, str]] = None,
         **kwargs: Any,
     ) -> AresResponse:
@@ -286,16 +453,16 @@ class AresClient:
         Args:
             url: URL to request.
             data: Request data.
-            json: JSON data.
             headers: Request headers.
             **kwargs: Additional arguments.
 
         Returns:
             AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
-        return self._request(
-            "PUT", url, data=data, json=json, headers=headers, **kwargs
-        )
+        return self._request("PUT", url, data=data, headers=headers, **kwargs)
 
     def delete(
         self,
@@ -313,8 +480,103 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
         return self._request("DELETE", url, headers=headers, **kwargs)
+
+    def head(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> AresResponse:
+        """
+        Make a HEAD request.
+
+        Args:
+            url: URL to request.
+            headers: Request headers.
+            **kwargs: Additional arguments.
+
+        Returns:
+            AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
+        """
+        return self._request("HEAD", url, headers=headers, **kwargs)
+
+    def options(
+        self,
+        url: str,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> AresResponse:
+        """
+        Make an OPTIONS request.
+
+        Args:
+            url: URL to request.
+            headers: Request headers.
+            **kwargs: Additional arguments.
+
+        Returns:
+            AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
+        """
+        return self._request("OPTIONS", url, headers=headers, **kwargs)
+
+    def patch(
+        self,
+        url: str,
+        data: Optional[Any] = None,
+        headers: Optional[Dict[str, str]] = None,
+        **kwargs: Any,
+    ) -> AresResponse:
+        """
+        Make a PATCH request.
+
+        Args:
+            url: URL to request.
+            data: Request data.
+            headers: Request headers.
+            **kwargs: Additional arguments.
+
+        Returns:
+            AresResponse: Response object.
+            
+        Raises:
+            CloudflareSessionExpired: 如果 Cloudflare 会话过期
+        """
+        return self._request("PATCH", url, data=data, headers=headers, **kwargs)
+
+    @property
+    def cookies(self) -> Dict[str, str]:
+        """
+        Get all cookies from the current session.
+
+        Returns:
+            Dict[str, str]: All cookies.
+        """
+        if self._curl_engine:
+            return self._curl_engine.get_cookies()
+        return {}
+
+    @property
+    def headers(self) -> Dict[str, str]:
+        """
+        Get all headers from the current session.
+
+        Returns:
+            Dict[str, str]: All headers.
+        """
+        if self._curl_engine:
+            return self._curl_engine.get_headers()
+        return {}
 
     def close(self) -> None:
         """Close all resources."""
@@ -322,12 +584,4 @@ class AresClient:
             self._browser_engine.close()
         if self._curl_engine:
             self._curl_engine.close()
-        self._initialized = False
-
-    def __enter__(self) -> "AresClient":
-        """Enter context manager."""
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Exit context manager."""
-        self.close() 
+        self._initialized = False 

@@ -30,4 +30,19 @@ class RequestError(AresError):
 
 class ProxyError(AresError):
     """Exception raised when proxy configuration fails."""
+    pass
+
+
+class CloudflareChallengeFailed(Exception):
+    """当 Cloudflare 挑战失败时抛出的异常"""
+    pass
+
+
+class CloudflareSessionExpired(Exception):
+    """当 Cloudflare 会话过期时抛出的异常"""
+    pass
+
+
+class BrowserInitializationError(Exception):
+    """当浏览器引擎初始化失败时抛出的异常"""
     pass 

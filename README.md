@@ -47,7 +47,7 @@ from cf_ares import AresClient
 
 # 自定义配置
 client = AresClient(
-    browser_engine="undetected",  # 选择浏览器引擎: "seleniumbase" 或 "undetected"
+    browser_engine="undetected",  # 选择浏览器引擎: "seleniumbase", "undetected" 或 "auto"
     headless=False,               # 是否使用无头模式
     fingerprint="chrome_120",     # 浏览器指纹配置
     proxy="http://user:pass@host:port",  # 代理设置
@@ -67,21 +67,26 @@ for i in range(10):
 ### 显式挑战执行与会话管理
 
 ```python
-from cf_ares import AresClient, CloudflareSessionExpired
+from cf_ares import AresClient, CloudflareSessionExpired, CloudflareChallengeFailed
 
 # 创建客户端实例
 client = AresClient(browser_engine="undetected")
 
-# 显式执行 Cloudflare 挑战
-response = client.solve_challenge("https://受保护网站.com")
-print(f"挑战成功! 状态码: {response.status_code}")
-
-# 获取会话信息
-session_info = client.get_session_info()
-print(f"获取到的 cookies: {session_info['cookies']}")
-
-# 保存会话到文件
-client.save_session("cf_session.json")
+try:
+    # 显式执行 Cloudflare 挑战
+    response = client.solve_challenge("https://受保护网站.com")
+    print(f"挑战成功! 状态码: {response.status_code}")
+    
+    # 获取会话信息
+    session_info = client.get_session_info("https://受保护网站.com")  # 指定URL参数
+    print(f"获取到的 cookies: {session_info['cookies']}")
+    
+    # 保存会话到文件
+    client.save_session("cf_session.json")
+    
+except CloudflareChallengeFailed as e:
+    print(f"挑战失败: {e}")
+    exit(1)
 
 # 在另一个程序中加载会话
 new_client = AresClient()
@@ -104,7 +109,7 @@ except CloudflareSessionExpired:
 
 ```python
 import json
-from cf_ares import AresClient, CloudflareSessionExpired
+from cf_ares import AresClient, CloudflareSessionExpired, CloudflareChallengeFailed
 
 # 创建客户端实例
 client = AresClient(
@@ -122,7 +127,7 @@ try:
     # 打印获取到的 cookies
     print("获取到的 cookies:")
     for cookie_name, cookie_value in client.cookies.items():
-        print(f"  {cookie_name}: {cookie_value[:10]}..." if len(str(value)) > 10 else f"  {cookie_name}: {cookie_value}")
+        print(f"  {cookie_name}: {cookie_value[:10]}..." if len(cookie_value) > 10 else f"  {cookie_name}: {cookie_value}")
     
     # 步骤 2: 使用已验证的会话调用 API
     print("\n开始调用 API...")
@@ -135,18 +140,12 @@ try:
         "limit": 20
     }
     
-    # 设置请求头
-    headers = {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://受保护网站.com/search"
-    }
-    
-    # 发送 POST 请求到 API 端点
+    # 发送 POST 请求到 API 端点 - 无需手动设置 headers，客户端会自动使用已验证的会话
+    # 只添加必要的自定义头，不会覆盖已验证的会话头信息
     api_response = client.post(
         "https://api.受保护网站.com/v1/search",
         json=api_data,
-        headers=headers
+        headers={"X-API-Key": "your-api-key"}  # 只添加必要的自定义头
     )
     
     # 处理 API 响应
@@ -174,9 +173,16 @@ try:
         print(f"API 调用失败! 状态码: {api_response.status_code}")
         print(f"错误信息: {api_response.text}")
 
+except CloudflareChallengeFailed as e:
+    print(f"Cloudflare 挑战失败: {e}")
+    print("请检查网络连接或代理设置...")
+
 except CloudflareSessionExpired as e:
     print(f"Cloudflare 会话已过期: {e}")
     print("请重新执行挑战...")
+
+except Exception as e:
+    print(f"发生未知错误: {e}")
 
 finally:
     # 关闭客户端，释放资源
@@ -189,7 +195,7 @@ finally:
 
 ```python
 # 程序 1: 执行挑战并保存会话
-from cf_ares import AresClient
+from cf_ares import AresClient, CloudflareChallengeFailed
 
 def save_cf_session():
     client = AresClient(browser_engine="undetected")
@@ -200,6 +206,10 @@ def save_cf_session():
         # 保存会话到文件
         client.save_session("cf_session.json")
         print("会话已保存到 cf_session.json")
+        return True
+    except CloudflareChallengeFailed as e:
+        print(f"挑战失败: {e}")
+        return False
     finally:
         client.close()
 

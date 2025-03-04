@@ -1,7 +1,7 @@
 <h1 align="center">CF-Ares 🔥</h1>
 <p align="center">下一代Cloudflare对抗框架 | 智能切换浏览器引擎与高性能请求</p>
 
-[![License](https://img.shields.io/badge/License-Anti-996-blue.svg)](https://github.com/yourname/cf-ares)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/hawkli-1994/CF-Ares/blob/main/LICENSE)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
 **突破Cloudflare防护的新范式**，通过三重防御层协同工作：

@@ -67,6 +67,7 @@ class AresClient:
         timeout: int = 30,
         max_retries: int = 3,
         debug: bool = False,
+        chrome_path: Optional[str] = None,
     ):
         """
         Initialize AresClient.
@@ -79,6 +80,7 @@ class AresClient:
             timeout: Request timeout in seconds.
             max_retries: Maximum number of retries for failed requests.
             debug: Enable debug logging.
+            chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
         """
         self.browser_engine = browser_engine
         self.headless = headless
@@ -87,12 +89,22 @@ class AresClient:
         self.timeout = timeout
         self.max_retries = max_retries
         self.debug = debug
+        self.chrome_path = chrome_path
 
         # Initialize engines
         self._browser_engine: Optional[BaseEngine] = None
         self._curl_engine: Optional[CurlEngine] = None
         self._session_manager = SessionManager()
         self._initialized = False
+
+    def __enter__(self) -> "AresClient":
+        """Enter the context manager."""
+        self._initialize()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit the context manager."""
+        self.close()
 
     def _initialize(self) -> None:
         """Initialize engines if not already initialized."""
@@ -120,6 +132,7 @@ class AresClient:
                 proxy=self.proxy,
                 timeout=self.timeout,
                 fingerprint=self.fingerprint,
+                chrome_path=self.chrome_path,
             )
         else:  # auto
             # Start with undetected, fallback to seleniumbase if needed
@@ -128,6 +141,7 @@ class AresClient:
                 proxy=self.proxy,
                 timeout=self.timeout,
                 fingerprint=self.fingerprint,
+                chrome_path=self.chrome_path,
             )
 
         self._initialized = True

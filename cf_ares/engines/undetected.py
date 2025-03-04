@@ -3,6 +3,7 @@ Undetected ChromeDriver engine implementation for CF-Ares.
 """
 
 import time
+import os
 from typing import Any, Dict, List, Optional
 
 import undetected_chromedriver as uc
@@ -20,12 +21,30 @@ class UndetectedEngine(BaseEngine):
     Uses undetected-chromedriver to handle advanced Cloudflare challenges.
     """
 
+    # Default Chrome binary paths
+    CHROME_PATHS = [
+        # System paths
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+        "/usr/bin/chromium",
+        "/usr/bin/chromium-browser",
+        "/usr/local/bin/chrome",
+        "/usr/local/bin/google-chrome",
+        "/usr/local/bin/chromium",
+        "/usr/local/bin/chromium-browser",
+        # Project bin directory
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chrome"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "google-chrome"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chromium"),
+    ]
+
     def __init__(
         self,
         headless: bool = True,
         proxy: Optional[str] = None,
         timeout: int = 30,
         fingerprint: Optional[str] = None,
+        chrome_path: Optional[str] = None,
     ):
         """
         Initialize the Undetected ChromeDriver engine.
@@ -35,10 +54,12 @@ class UndetectedEngine(BaseEngine):
             proxy: Proxy to use.
             timeout: Request timeout in seconds.
             fingerprint: Browser fingerprint to use.
+            chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
         """
         super().__init__(headless, proxy, timeout, fingerprint)
         self.driver: Optional[uc.Chrome] = None
         self.fingerprint_manager = FingerprintManager()
+        self.chrome_path = chrome_path
         self._initialize_driver()
 
     def _initialize_driver(self) -> None:
@@ -64,11 +85,24 @@ class UndetectedEngine(BaseEngine):
             options.add_argument("--disable-infobars")
             options.add_argument("--disable-notifications")
             
+            # Set Chrome binary location
+            chrome_path = self.chrome_path
+            if not chrome_path:
+                for path in self.CHROME_PATHS:
+                    if os.path.exists(path):
+                        chrome_path = path
+                        break
+                    
+            if not chrome_path:
+                # If no Chrome binary found, let undetected-chromedriver handle it
+                chrome_path = None
+                
             # Create driver
             self.driver = uc.Chrome(
                 options=options,
                 headless=self.headless,
                 use_subprocess=True,
+                browser_executable_path=chrome_path,
             )
             
             # Set timeout

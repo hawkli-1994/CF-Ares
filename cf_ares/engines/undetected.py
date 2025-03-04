@@ -7,8 +7,11 @@ import os
 from typing import Any, Dict, List, Optional
 
 import undetected_chromedriver as uc
+from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.webdriver.edge.service import Service as EdgeService
+from selenium.webdriver.edge.options import Options as EdgeOptions
 
 from cf_ares.engines.base import BaseEngine
 from cf_ares.exceptions import BrowserError, CloudflareError
@@ -38,6 +41,14 @@ class UndetectedEngine(BaseEngine):
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chromium"),
     ]
 
+    # Edge WebDriver path
+    EDGE_DRIVER_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "bin",
+        "edgedriver_linux64",
+        "msedgedriver"
+    )
+
     def __init__(
         self,
         headless: bool = True,
@@ -45,6 +56,7 @@ class UndetectedEngine(BaseEngine):
         timeout: int = 30,
         fingerprint: Optional[str] = None,
         chrome_path: Optional[str] = None,
+        use_edge: bool = False,
     ):
         """
         Initialize the Undetected ChromeDriver engine.
@@ -55,55 +67,93 @@ class UndetectedEngine(BaseEngine):
             timeout: Request timeout in seconds.
             fingerprint: Browser fingerprint to use.
             chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
+            use_edge: Whether to use Edge WebDriver instead of Chrome.
         """
         super().__init__(headless, proxy, timeout, fingerprint)
-        self.driver: Optional[uc.Chrome] = None
+        self.driver = None
         self.fingerprint_manager = FingerprintManager()
         self.chrome_path = chrome_path
+        self.use_edge = use_edge
         self._initialize_driver()
 
     def _initialize_driver(self) -> None:
-        """Initialize the Undetected ChromeDriver."""
+        """Initialize the WebDriver."""
         try:
-            # Prepare Chrome options
-            options = Options()
-            
-            # Set user agent if fingerprint is specified
-            if self.fingerprint:
-                user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
-                options.add_argument(f"--user-agent={user_agent}")
-            
-            # Set proxy if specified
-            if self.proxy:
-                options.add_argument(f"--proxy-server={self.proxy}")
-            
-            # Add common options
-            options.add_argument("--disable-extensions")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-infobars")
-            options.add_argument("--disable-notifications")
-            
-            # Set Chrome binary location
-            chrome_path = self.chrome_path
-            if not chrome_path:
-                for path in self.CHROME_PATHS:
-                    if os.path.exists(path):
-                        chrome_path = path
-                        break
-                    
-            if not chrome_path:
-                # If no Chrome binary found, let undetected-chromedriver handle it
-                chrome_path = None
+            if self.use_edge:
+                # Check if Edge WebDriver exists
+                if not os.path.exists(self.EDGE_DRIVER_PATH):
+                    raise BrowserError(f"Edge WebDriver not found at {self.EDGE_DRIVER_PATH}")
                 
-            # Create driver
-            self.driver = uc.Chrome(
-                options=options,
-                headless=self.headless,
-                use_subprocess=True,
-                browser_executable_path=chrome_path,
-            )
+                # Create Edge options
+                options = EdgeOptions()
+                if self.headless:
+                    options.add_argument("--headless")
+                
+                # Set user agent if fingerprint is specified
+                if self.fingerprint:
+                    user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
+                    options.add_argument(f"--user-agent={user_agent}")
+                
+                # Set proxy if specified
+                if self.proxy:
+                    options.add_argument(f"--proxy-server={self.proxy}")
+                
+                # Add common options
+                options.add_argument("--disable-extensions")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--no-sandbox")
+                options.add_argument("--disable-infobars")
+                options.add_argument("--disable-notifications")
+                
+                # Create Edge service
+                service = EdgeService(executable_path=self.EDGE_DRIVER_PATH)
+                
+                # Create Edge driver
+                self.driver = webdriver.Edge(
+                    service=service,
+                    options=options
+                )
+            else:
+                # Prepare Chrome options
+                options = Options()
+                
+                # Set user agent if fingerprint is specified
+                if self.fingerprint:
+                    user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
+                    options.add_argument(f"--user-agent={user_agent}")
+                
+                # Set proxy if specified
+                if self.proxy:
+                    options.add_argument(f"--proxy-server={self.proxy}")
+                
+                # Add common options
+                options.add_argument("--disable-extensions")
+                options.add_argument("--disable-gpu")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--no-sandbox")
+                options.add_argument("--disable-infobars")
+                options.add_argument("--disable-notifications")
+                
+                # Set Chrome binary location
+                chrome_path = self.chrome_path
+                if not chrome_path:
+                    for path in self.CHROME_PATHS:
+                        if os.path.exists(path):
+                            chrome_path = path
+                            break
+                    
+                if not chrome_path:
+                    # If no Chrome binary found, let undetected-chromedriver handle it
+                    chrome_path = None
+                    
+                # Create driver
+                self.driver = uc.Chrome(
+                    options=options,
+                    headless=self.headless,
+                    use_subprocess=True,
+                    browser_executable_path=chrome_path,
+                )
             
             # Set timeout
             self.driver.set_page_load_timeout(self.timeout)
@@ -112,7 +162,7 @@ class UndetectedEngine(BaseEngine):
             if self.fingerprint:
                 self._apply_fingerprint()
         except Exception as e:
-            raise BrowserError(f"Failed to initialize Undetected ChromeDriver: {e}")
+            raise BrowserError(f"Failed to initialize WebDriver: {e}")
 
     def _apply_fingerprint(self) -> None:
         """Apply fingerprint to the browser."""

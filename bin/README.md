@@ -1,15 +1,22 @@
-# Chrome Binary Directory
+# Browser Binaries Directory
 
-This directory is used to store Chrome/Chromium binary files for CF-Ares.
+This directory is used to store browser binary files and WebDrivers for CF-Ares.
 
 ## Supported Binary Names
 
-The following binary names are supported:
+The following binary names are supported for Chrome/Chromium:
 - `chrome`
 - `google-chrome`
 - `chromium`
 
-## How to Set Up
+## Edge WebDriver
+
+CF-Ares also supports Microsoft Edge WebDriver. The WebDriver should be placed in the following location:
+```
+bin/edgedriver_linux64/msedgedriver
+```
+
+## How to Set Up Chrome/Chromium
 
 1. Download Chrome/Chromium binary for your platform:
    - For Linux: Download from [Google Chrome](https://www.google.com/chrome/) or [Chromium](https://www.chromium.org/getting-involved/download-chromium/)
@@ -38,9 +45,25 @@ The following binary names are supported:
    chmod +x bin/chrome  # or bin/google-chrome or bin/chromium
    ```
 
+## How to Set Up Edge WebDriver
+
+1. Download Microsoft Edge WebDriver for your platform from [Microsoft Edge WebDriver](https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/)
+
+2. Create the directory structure and place the WebDriver:
+   ```bash
+   # For Linux/macOS
+   mkdir -p bin/edgedriver_linux64
+   cp /path/to/msedgedriver bin/edgedriver_linux64/msedgedriver
+   chmod +x bin/edgedriver_linux64/msedgedriver
+
+   # For Windows
+   mkdir bin\edgedriver_win64
+   copy C:\path\to\msedgedriver.exe bin\edgedriver_win64\msedgedriver.exe
+   ```
+
 ## Usage
 
-You can specify the Chrome binary path when creating an AresClient:
+You can specify the browser type and binary path when creating an AresClient:
 
 ```python
 from cf_ares import AresClient
@@ -48,7 +71,13 @@ from cf_ares import AresClient
 # Use default Chrome binary from bin directory
 client = AresClient(browser_engine="undetected")
 
-# Or specify custom path
+# Use Edge WebDriver
+client = AresClient(
+    browser_engine="undetected",
+    use_edge=True
+)
+
+# Or specify custom Chrome path
 client = AresClient(
     browser_engine="undetected",
     chrome_path="/path/to/your/chrome"
@@ -59,5 +88,5 @@ client = AresClient(
 
 - The binary must be compatible with your operating system
 - For Linux, make sure the binary has execute permissions
-- The binary should be a complete Chrome/Chromium installation, not just the executable
+- The binary should be a complete browser installation, not just the executable
 - If you're using a custom Chrome binary, make sure it's compatible with undetected-chromedriver 

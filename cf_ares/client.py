@@ -68,6 +68,7 @@ class AresClient:
         max_retries: int = 3,
         debug: bool = False,
         chrome_path: Optional[str] = None,
+        use_edge: bool = False,
     ):
         """
         Initialize AresClient.
@@ -81,6 +82,7 @@ class AresClient:
             max_retries: Maximum number of retries for failed requests.
             debug: Enable debug logging.
             chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
+            use_edge: Whether to use Edge WebDriver instead of Chrome.
         """
         self.browser_engine = browser_engine
         self.headless = headless
@@ -90,6 +92,7 @@ class AresClient:
         self.max_retries = max_retries
         self.debug = debug
         self.chrome_path = chrome_path
+        self.use_edge = use_edge
 
         # Initialize engines
         self._browser_engine: Optional[BaseEngine] = None
@@ -133,6 +136,7 @@ class AresClient:
                 timeout=self.timeout,
                 fingerprint=self.fingerprint,
                 chrome_path=self.chrome_path,
+                use_edge=self.use_edge,
             )
         else:  # auto
             # Start with undetected, fallback to seleniumbase if needed
@@ -142,6 +146,7 @@ class AresClient:
                 timeout=self.timeout,
                 fingerprint=self.fingerprint,
                 chrome_path=self.chrome_path,
+                use_edge=self.use_edge,
             )
 
         self._initialized = True

@@ -1,0 +1,7 @@
+[project]
+name = "cf-ares"
+version = "0.1.0"
+description = "下一代Cloudflare对抗框架 | 智能切换浏览器引擎与高性能请求"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []

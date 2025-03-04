@@ -100,7 +100,7 @@ except CloudflareSessionExpired:
 
 ### 突破验证后调用 API 示例
 
-以下示例展示了如何先使用 GET 请求突破 Cloudflare 验证，然后使用 POST 方法调用目标网站的其他 API：
+以下示例展示了如何使用显式挑战方法突破 Cloudflare 验证，然后调用目标网站的 API：
 
 ```python
 import json
@@ -122,7 +122,7 @@ try:
     # 打印获取到的 cookies
     print("获取到的 cookies:")
     for cookie_name, cookie_value in client.cookies.items():
-        print(f"  {cookie_name}: {cookie_value[:10]}..." if len(cookie_value) > 10 else f"  {cookie_name}: {cookie_value}")
+        print(f"  {cookie_name}: {cookie_value[:10]}..." if len(str(value)) > 10 else f"  {cookie_name}: {cookie_value}")
     
     # 步骤 2: 使用已验证的会话调用 API
     print("\n开始调用 API...")
@@ -161,6 +161,15 @@ try:
         # 保存会话以便后续使用
         client.save_session("cf_session.json")
         print("会话已保存到 cf_session.json")
+        
+        # 使用保存的会话信息进行更多 API 调用
+        for i in range(3):
+            try:
+                data_response = client.get(f"https://api.受保护网站.com/v1/data?page={i}")
+                print(f"页面 {i+1} 数据获取成功! 状态码: {data_response.status_code}")
+            except CloudflareSessionExpired:
+                print(f"页面 {i+1} 请求时会话已过期，重新执行挑战...")
+                client.solve_challenge("https://api.受保护网站.com")
     else:
         print(f"API 调用失败! 状态码: {api_response.status_code}")
         print(f"错误信息: {api_response.text}")
@@ -172,6 +181,48 @@ except CloudflareSessionExpired as e:
 finally:
     # 关闭客户端，释放资源
     client.close()
+```
+
+### 跨程序会话共享示例
+
+以下示例展示了如何在不同程序之间共享 Cloudflare 会话：
+
+```python
+# 程序 1: 执行挑战并保存会话
+from cf_ares import AresClient
+
+def save_cf_session():
+    client = AresClient(browser_engine="undetected")
+    try:
+        print("执行 Cloudflare 挑战...")
+        client.solve_challenge("https://受保护网站.com")
+        
+        # 保存会话到文件
+        client.save_session("cf_session.json")
+        print("会话已保存到 cf_session.json")
+    finally:
+        client.close()
+
+# 程序 2: 加载会话并使用
+from cf_ares import AresClient, CloudflareSessionExpired
+
+def use_cf_session():
+    client = AresClient()
+    try:
+        # 加载保存的会话
+        client.load_session("cf_session.json")
+        print("会话已加载")
+        
+        # 使用加载的会话发送请求
+        try:
+            response = client.get("https://受保护网站.com/api/data")
+            print(f"请求成功! 状态码: {response.status_code}")
+            return response.json()
+        except CloudflareSessionExpired:
+            print("会话已过期，需要重新执行挑战")
+            return None
+    finally:
+        client.close()
 ```
 
 ## 🛠️ 开发

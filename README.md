@@ -80,6 +80,38 @@ make test
 make build
 ```
 
+### 发布到 PyPI
+
+CF-Ares 提供了两种发布脚本，用于将包发布到 PyPI：
+
+#### 使用 Bash 脚本
+
+```bash
+# 发布到 PyPI
+./scripts/publish.sh
+
+# 发布到 TestPyPI
+./scripts/publish.sh --test
+
+# 跳过测试
+./scripts/publish.sh --skip-tests
+```
+
+#### 使用 Python 脚本（跨平台）
+
+```bash
+# 发布到 PyPI
+python scripts/publish.py
+
+# 发布到 TestPyPI
+python scripts/publish.py --test
+
+# 跳过测试并自动确认
+python scripts/publish.py --skip-tests --no-confirm
+```
+
+更多详细信息，请查看 [scripts/README.md](scripts/README.md)。
+
 ## 📄 许可证
 
 MIT License - 详见 [LICENSE](LICENSE) 文件

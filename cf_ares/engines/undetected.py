@@ -26,6 +26,8 @@ class UndetectedEngine(BaseEngine):
 
     # Default Chrome binary paths
     CHROME_PATHS = [
+        # Environment variable
+        os.environ.get("CHROME_BIN"),
         # System paths
         "/usr/bin/google-chrome",
         "/usr/bin/google-chrome-stable",
@@ -42,7 +44,7 @@ class UndetectedEngine(BaseEngine):
     ]
 
     # Edge WebDriver path
-    EDGE_DRIVER_PATH = os.path.join(
+    EDGE_DRIVER_PATH = os.environ.get("EDGE_DRIVER") or os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
         "bin",
         "edgedriver_linux64",
@@ -80,9 +82,12 @@ class UndetectedEngine(BaseEngine):
         """Initialize the WebDriver."""
         try:
             if self.use_edge:
+                # Get Edge WebDriver path from environment variable or use default
+                edge_driver_path = self.EDGE_DRIVER_PATH
+                
                 # Check if Edge WebDriver exists
-                if not os.path.exists(self.EDGE_DRIVER_PATH):
-                    raise BrowserError(f"Edge WebDriver not found at {self.EDGE_DRIVER_PATH}")
+                if not os.path.exists(edge_driver_path):
+                    raise BrowserError(f"Edge WebDriver not found at {edge_driver_path}")
                 
                 # Create Edge options
                 options = EdgeOptions()
@@ -107,7 +112,7 @@ class UndetectedEngine(BaseEngine):
                 options.add_argument("--disable-notifications")
                 
                 # Create Edge service
-                service = EdgeService(executable_path=self.EDGE_DRIVER_PATH)
+                service = EdgeService(executable_path=edge_driver_path)
                 
                 # Create Edge driver
                 self.driver = webdriver.Edge(
@@ -138,7 +143,9 @@ class UndetectedEngine(BaseEngine):
                 # Set Chrome binary location
                 chrome_path = self.chrome_path
                 if not chrome_path:
-                    for path in self.CHROME_PATHS:
+                    # Filter out None values from CHROME_PATHS
+                    chrome_paths = [path for path in self.CHROME_PATHS if path]
+                    for path in chrome_paths:
                         if os.path.exists(path):
                             chrome_path = path
                             break

@@ -63,6 +63,82 @@ for i in range(10):
     print(resp.json())
 ```
 
+### 突破验证后调用 API 示例
+
+以下示例展示了如何先使用 GET 请求突破 Cloudflare 验证，然后使用 POST 方法调用目标网站的其他 API：
+
+```python
+import json
+from cf_ares import AresClient
+
+# 创建客户端实例
+client = AresClient(
+    browser_engine="undetected",  # 使用 undetected-chromedriver 引擎
+    headless=True,                # 无头模式
+    timeout=60                    # 增加超时时间以应对复杂验证
+)
+
+# 步骤 1: 访问网站首页，突破 Cloudflare 验证
+print("正在突破 Cloudflare 验证...")
+response = client.get("https://api.受保护网站.com")
+
+# 检查是否成功突破验证
+if response.status_code == 200:
+    print(f"成功突破验证! 状态码: {response.status_code}")
+    
+    # 打印获取到的 cookies
+    print("获取到的 cookies:")
+    for cookie_name, cookie_value in client.cookies.items():
+        print(f"  {cookie_name}: {cookie_value[:10]}..." if len(cookie_value) > 10 else f"  {cookie_name}: {cookie_value}")
+    
+    # 步骤 2: 使用已验证的会话调用 API
+    print("\n开始调用 API...")
+    
+    # 准备 API 请求数据
+    api_data = {
+        "username": "test_user",
+        "query": "example search",
+        "page": 1,
+        "limit": 20
+    }
+    
+    # 设置请求头
+    headers = {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://受保护网站.com/search"
+    }
+    
+    # 发送 POST 请求到 API 端点
+    api_response = client.post(
+        "https://api.受保护网站.com/v1/search",
+        json=api_data,
+        headers=headers
+    )
+    
+    # 处理 API 响应
+    if api_response.status_code == 200:
+        results = api_response.json()
+        print(f"API 调用成功! 获取到 {len(results.get('items', []))} 条结果")
+        
+        # 处理返回的数据
+        for i, item in enumerate(results.get("items", [])[:3]):
+            print(f"结果 {i+1}: {item.get('title', 'N/A')}")
+        
+        # 继续调用其他 API...
+        user_info = client.post("https://api.受保护网站.com/v1/user/info")
+        print(f"用户信息 API 状态码: {user_info.status_code}")
+    else:
+        print(f"API 调用失败! 状态码: {api_response.status_code}")
+        print(f"错误信息: {api_response.text}")
+else:
+    print(f"突破验证失败! 状态码: {response.status_code}")
+    print(f"错误信息: {response.text}")
+
+# 关闭客户端，释放资源
+client.close()
+```
+
 ## 🛠️ 开发
 
 ```bash

@@ -151,10 +151,18 @@ class CurlEngine:
         except Exception as e:
             raise RequestError(f"Request failed: {e}")
 
+    def get_cookies(self) -> Dict[str, str]:
+        """Get cookies from the curl_cffi session."""
+        return dict(self.session.cookies)
+
+    def get_headers(self) -> Dict[str, str]:
+        """Get headers from the curl_cffi session."""
+        return dict(self.session.headers)
+
     def close(self) -> None:
-        """Close the engine and release resources."""
+        """Close the curl_cffi session."""
         if self.session:
             try:
                 self.session.close()
-            except:
-                pass 
+            except Exception:
+                pass

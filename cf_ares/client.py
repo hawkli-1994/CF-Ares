@@ -110,18 +110,23 @@ class AresClient:
         self.close()
 
     def _initialize(self) -> None:
-        """Initialize engines if not already initialized."""
+        """Initialize curl engine (lightweight, no browser needed)."""
         if self._initialized:
             return
 
-        # Initialize curl engine
+        # Initialize curl engine only - browser engine is lazy
         self._curl_engine = CurlEngine(
             proxy=self.proxy,
             timeout=self.timeout,
             fingerprint=self.fingerprint,
         )
+        self._initialized = True
 
-        # Initialize browser engine based on configuration
+    def _init_browser_engine(self) -> None:
+        """Lazy-init browser engine - only called when CF JS challenge detected."""
+        if self._browser_engine is not None:
+            return
+
         if self.browser_engine == "seleniumbase":
             self._browser_engine = SeleniumBaseEngine(
                 headless=self.headless,
@@ -139,7 +144,6 @@ class AresClient:
                 use_edge=self.use_edge,
             )
         else:  # auto
-            # Start with undetected, fallback to seleniumbase if needed
             self._browser_engine = UndetectedEngine(
                 headless=self.headless,
                 proxy=self.proxy,
@@ -149,11 +153,9 @@ class AresClient:
                 use_edge=self.use_edge,
             )
 
-        self._initialized = True
-
     def _handle_cloudflare(self, url: str) -> None:
         """
-        Handle Cloudflare challenge using browser engine.
+        Handle Cloudflare challenge using browser engine (lazy-init).
 
         Args:
             url: URL to visit.
@@ -161,8 +163,9 @@ class AresClient:
         Raises:
             CloudflareError: If Cloudflare challenge fails.
         """
+        # Lazy-init browser engine only when actually needed
         if not self._browser_engine:
-            self._initialize()
+            self._init_browser_engine()
 
         if not self._browser_engine:
             raise AresError("Browser engine not initialized")
@@ -188,83 +191,87 @@ class AresClient:
     def solve_challenge(self, url: str, max_retries: int = 3) -> AresResponse:
         """
         显式执行 Cloudflare 挑战
-        
+
         参数:
             url (str): 要访问的 URL
             max_retries (int): 最大重试次数
-            
+
         返回:
             AresResponse: 响应对象
-            
+
         抛出:
             CloudflareChallengeFailed: 如果挑战失败
         """
         self._initialize()
-        
+
+        # Lazy-init browser engine only when explicitly solving
+        if not self._browser_engine:
+            self._init_browser_engine()
+
         if not self._browser_engine:
             raise AresError("Browser engine not initialized")
-            
+
         retries = 0
         last_error = None
-        
+
         while retries < max_retries:
             try:
                 # 使用浏览器引擎访问 URL
                 self._browser_engine.get(url)
-                
+
                 # 等待 Cloudflare 挑战完成
                 self._browser_engine.wait_for_cloudflare()
-                
+
                 # 提取会话信息
                 cookies = self._browser_engine.get_cookies()
                 headers = self._browser_engine.get_headers()
-                
+
                 # 更新会话管理器
                 self._session_manager.update(url, cookies, headers)
-                
+
                 # 应用会话到 curl 引擎
                 if self._curl_engine:
                     self._curl_engine.set_cookies(cookies)
                     self._curl_engine.set_headers(headers)
-                
-                # 使用 curl 引擎发送请求，验证会话是否有效
+
+                # 使用 curl 引擎发送请求,验证会话是否有效
                 response = self._curl_engine.request("GET", url)
-                
-                # 如果响应中包含 Cloudflare 挑战页面，则认为挑战失败
+
+                # 如果响应中包含 Cloudflare 挑战页面,则认为挑战失败
                 if "challenge" in response.text.lower() or "cloudflare" in response.text.lower():
-                    raise CloudflareChallengeFailed("Cloudflare 挑战失败，响应中包含挑战页面")
-                
+                    raise CloudflareChallengeFailed("Cloudflare 挑战失败,响应中包含挑战页面")
+
                 return AresResponse(response)
             except Exception as e:
                 last_error = e
                 retries += 1
                 if self.debug:
-                    print(f"Cloudflare 挑战失败，重试 {retries}/{max_retries}: {str(e)}")
+                    print(f"Cloudflare 挑战失败,重试 {retries}/{max_retries}: {str(e)}")
                 time.sleep(2)  # 等待一段时间后重试
-        
+
         # 所有重试都失败
-        raise CloudflareChallengeFailed(f"无法通过 Cloudflare 挑战，最大重试次数已用尽: {str(last_error)}")
+        raise CloudflareChallengeFailed(f"无法通过 Cloudflare 挑战,最大重试次数已用尽: {str(last_error)}")
 
     def get_session_info(self, url: Optional[str] = None) -> Dict[str, Any]:
         """
         获取当前会话信息
-        
+
         参数:
-            url (str, optional): 要获取会话信息的 URL。如果为 None，则返回所有会话信息。
-            
+            url (str, optional): 要获取会话信息的 URL。如果为 None,则返回所有会话信息。
+
         返回:
             dict: 包含 cookies、headers 等会话信息的字典
         """
         if not self._initialized:
             self._initialize()
-            
+
         if url:
             cookies = self._session_manager.get_cookies(url)
             headers = self._session_manager.get_headers(url)
-            
+
             if not cookies or not headers:
                 return {}
-                
+
             return {
                 "cookies": cookies,
                 "headers": headers,
@@ -285,26 +292,26 @@ class AresClient:
     def set_session_info(self, session_info: Dict[str, Any], url: Optional[str] = None) -> None:
         """
         设置会话信息
-        
+
         参数:
             session_info (dict): 包含 cookies、headers 等会话信息的字典
-            url (str, optional): 要设置会话信息的 URL。如果为 None，则使用 session_info 中的 url。
+            url (str, optional): 要设置会话信息的 URL。如果为 None,则使用 session_info 中的 url。
         """
         if not self._initialized:
             self._initialize()
-            
+
         if not url and "url" in session_info:
             url = session_info["url"]
-            
+
         if not url:
             raise ValueError("必须提供 url 参数或在 session_info 中包含 url 字段")
-            
+
         cookies = session_info.get("cookies", {})
         headers = session_info.get("headers", {})
-        
+
         # 更新会话管理器
         self._session_manager.update(url, cookies, headers)
-        
+
         # 应用会话到 curl 引擎
         if self._curl_engine:
             self._curl_engine.set_cookies(cookies)
@@ -313,29 +320,29 @@ class AresClient:
     def save_session(self, file_path: str, url: Optional[str] = None) -> None:
         """
         将当前会话保存到文件
-        
+
         参数:
             file_path (str): 文件路径
-            url (str, optional): 要保存会话的 URL。如果为 None，则保存所有会话。
+            url (str, optional): 要保存会话的 URL。如果为 None,则保存所有会话。
         """
         session_info = self.get_session_info(url)
-        
+
         # 确保目录存在
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-        
+
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(session_info, f, indent=2)
 
     def load_session(self, file_path: str) -> None:
         """
         从文件加载会话
-        
+
         参数:
             file_path (str): 文件路径
         """
         with open(file_path, "r", encoding="utf-8") as f:
             session_info = json.load(f)
-            
+
         if isinstance(session_info, dict):
             if "cookies" in session_info and "url" in session_info:
                 # 单个会话
@@ -351,6 +358,27 @@ class AresClient:
                             "url": url
                         })
 
+    def _is_cloudflare_challenge(self, response) -> bool:
+        """Detect if response is a Cloudflare challenge page."""
+        status = getattr(response, "status_code", 200)
+        text = getattr(response, "text", "")
+
+        # Only 403/503 are CF challenge status codes
+        if status not in (403, 503):
+            return False
+
+        # Check body for CF challenge indicators
+        text_lower = text.lower()
+        cf_markers = (
+            "cf-browser-verification",
+            "cf-im-under-attack",
+            "challenge platform",
+            "just a moment",
+            "turnstile",
+            "captcha",
+        )
+        return any(m in text_lower for m in cf_markers)
+
     def _request(
         self,
         method: str,
@@ -362,7 +390,7 @@ class AresClient:
         **kwargs: Any,
     ) -> AresResponse:
         """
-        Make a request with automatic Cloudflare handling.
+        Make a request with automatic Cloudflare handling (lazy browser init).
 
         Args:
             method: HTTP method.
@@ -375,7 +403,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -384,28 +412,33 @@ class AresClient:
         if not self._curl_engine:
             raise AresError("Curl engine not initialized")
 
-        # Check if we need to handle Cloudflare first
-        if not self._session_manager.has_valid_session(url):
-            self._handle_cloudflare(url)
-
-        # Make request with curl engine
-        try:
+        # If we already have a valid session, just use curl directly
+        if self._session_manager.has_valid_session(url):
             response = self._curl_engine.request(
-                method=method,
-                url=url,
-                params=params,
-                data=data,
-                json=json,
-                headers=headers,
-                **kwargs,
+                method=method, url=url, params=params,
+                data=data, json=json, headers=headers, **kwargs,
             )
             return AresResponse(response)
+
+        # First attempt: try curl directly (no browser needed for most sites)
+        try:
+            response = self._curl_engine.request(
+                method=method, url=url, params=params,
+                data=data, json=json, headers=headers, **kwargs,
+            )
         except Exception as e:
-            # If request fails, check if it's a Cloudflare issue
-            error_str = str(e).lower()
-            if "cloudflare" in error_str or "challenge" in error_str or "captcha" in error_str:
-                raise CloudflareSessionExpired("Cloudflare 会话已过期，请重新执行 solve_challenge 方法") from e
             raise
+
+        # If CF challenge detected, lazy-init browser and solve it
+        if self._is_cloudflare_challenge(response):
+            self._handle_cloudflare(url)
+            # Retry with updated session cookies/headers
+            response = self._curl_engine.request(
+                method=method, url=url, params=params,
+                data=data, json=json, headers=headers, **kwargs,
+            )
+
+        return AresResponse(response)
 
     def get(
         self,
@@ -425,7 +458,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -451,7 +484,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -477,7 +510,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -499,7 +532,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -521,7 +554,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -543,7 +576,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -567,7 +600,7 @@ class AresClient:
 
         Returns:
             AresResponse: Response object.
-            
+
         Raises:
             CloudflareSessionExpired: 如果 Cloudflare 会话过期
         """
@@ -603,4 +636,4 @@ class AresClient:
             self._browser_engine.close()
         if self._curl_engine:
             self._curl_engine.close()
-        self._initialized = False 
+        self._initialized = False

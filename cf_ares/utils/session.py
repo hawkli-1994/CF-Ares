@@ -117,4 +117,4 @@ class SessionManager:
             if domain in self.sessions:
                 del self.sessions[domain]
         else:
-            self.sessions.clear() 
+            self.sessions.clear()

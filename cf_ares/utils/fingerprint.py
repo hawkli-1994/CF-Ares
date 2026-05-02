@@ -5,7 +5,7 @@ Fingerprint management utilities for CF-Ares.
 import json
 import os
 import random
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 
 class FingerprintManager:
@@ -49,7 +49,7 @@ class FingerprintManager:
         """
         if browser_type and browser_type in self.USER_AGENTS:
             return self.USER_AGENTS[browser_type]
-        
+
         # Return a random user agent if no specific type is requested
         return random.choice(list(self.USER_AGENTS.values()))
 
@@ -67,7 +67,7 @@ class FingerprintManager:
         if os.path.exists(filepath):
             with open(filepath, "r") as f:
                 return json.load(f)
-        
+
         # Return a default fingerprint if the requested one doesn't exist
         return self.generate_fingerprint(name)
 
@@ -95,29 +95,48 @@ class FingerprintManager:
         """
         # Get user agent
         user_agent = self.get_user_agent(browser_type)
-        
+
         # Generate basic fingerprint data
         fingerprint = {
             "userAgent": user_agent,
-            "screenResolution": random.choice([
-                [1920, 1080],
-                [2560, 1440],
-                [1366, 768],
-                [1440, 900],
-                [1536, 864],
-            ]),
+            "screenResolution": random.choice(
+                [
+                    [1920, 1080],
+                    [2560, 1440],
+                    [1366, 768],
+                    [1440, 900],
+                    [1536, 864],
+                ]
+            ),
             "availableScreenResolution": [1920, 1040],
-            "timezoneOffset": random.choice([-480, -420, -360, -300, -240, -180, 0, 60, 120, 180, 240, 300, 360, 480]),
+            "timezoneOffset": random.choice(
+                [
+                    -480,
+                    -420,
+                    -360,
+                    -300,
+                    -240,
+                    -180,
+                    0,
+                    60,
+                    120,
+                    180,
+                    240,
+                    300,
+                    360,
+                    480,
+                ]
+            ),
             "languages": ["en-US", "en"],
             "webgl_vendor": "Google Inc. (NVIDIA)",
             "webgl_renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0, D3D11)",
             "audio_fingerprint": random.uniform(0.1, 0.9),
             "canvas_fingerprint": random.randint(1000000000, 9999999999),
         }
-        
+
         # Set the current fingerprint
         self.current_fingerprint = browser_type or "custom"
-        
+
         return fingerprint
 
     def get_fingerprint(self, name: Optional[str] = None) -> Dict:
@@ -132,10 +151,10 @@ class FingerprintManager:
         """
         if name:
             return self.load_fingerprint(name)
-        
+
         if self.current_fingerprint:
             return self.load_fingerprint(self.current_fingerprint)
-        
+
         # Generate a random fingerprint if no name is specified
         return self.generate_fingerprint()
 
@@ -169,5 +188,5 @@ class FingerprintManager:
             "record_size_limit": 16385,
             "additional_extensions": ["extended_master_secret", "renegotiation_info"],
         }
-        
-        return tls_fingerprint 
+
+        return tls_fingerprint

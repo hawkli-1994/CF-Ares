@@ -3,7 +3,7 @@ SeleniumBase engine implementation for CF-Ares.
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from seleniumbase import Driver
 
@@ -72,14 +72,14 @@ class SeleniumBaseEngine(BaseEngine):
             return
 
         fingerprint = self.fingerprint_manager.get_fingerprint(self.fingerprint)
-        
+
         # Apply basic fingerprint properties
         js_script = """
         // Override navigator properties
         Object.defineProperty(navigator, 'userAgent', {
             get: function() { return '%s'; }
         });
-        
+
         // Override screen properties
         Object.defineProperty(screen, 'width', {
             get: function() { return %d; }
@@ -87,12 +87,12 @@ class SeleniumBaseEngine(BaseEngine):
         Object.defineProperty(screen, 'height', {
             get: function() { return %d; }
         });
-        
+
         // Override timezone
         Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-            get: function() { 
-                return function() { 
-                    return { timeZone: 'UTC', timeZoneOffset: %d }; 
+            get: function() {
+                return function() {
+                    return { timeZone: 'UTC', timeZoneOffset: %d };
                 }
             }
         });
@@ -102,7 +102,7 @@ class SeleniumBaseEngine(BaseEngine):
             fingerprint.get("screenResolution", [1920, 1080])[1],
             fingerprint.get("timezoneOffset", 0),
         )
-        
+
         try:
             self.driver.execute_script(js_script)
         except Exception as e:
@@ -165,7 +165,7 @@ class SeleniumBaseEngine(BaseEngine):
                 if self.driver.find_elements("css selector", selector):
                     is_cloudflare = True
                     break
-            except:
+            except Exception:
                 pass
 
         if not is_cloudflare:
@@ -175,7 +175,7 @@ class SeleniumBaseEngine(BaseEngine):
         # Wait for the challenge to be solved
         max_wait = self.timeout
         start_time = time.time()
-        
+
         while time.time() - start_time < max_wait:
             # Check if we're still on a challenge page
             still_on_challenge = False
@@ -184,26 +184,30 @@ class SeleniumBaseEngine(BaseEngine):
                     if self.driver.find_elements("css selector", selector):
                         still_on_challenge = True
                         break
-                except:
+                except Exception:
                     pass
-            
+
             if not still_on_challenge:
                 # Challenge completed
                 # Wait a bit more to ensure page is fully loaded
                 time.sleep(2)
                 return True
-            
+
             # Check for error messages
             try:
-                error_elem = self.driver.find_elements("css selector", "#challenge-error-title")
+                error_elem = self.driver.find_elements(
+                    "css selector", "#challenge-error-title"
+                )
                 if error_elem:
-                    raise CloudflareError(f"Cloudflare challenge failed: {error_elem[0].text}")
-            except:
+                    raise CloudflareError(
+                        f"Cloudflare challenge failed: {error_elem[0].text}"
+                    )
+            except Exception:
                 pass
-            
+
             # Wait before checking again
             time.sleep(1)
-        
+
         # Timeout reached
         raise CloudflareError("Cloudflare challenge timed out")
 
@@ -242,13 +246,16 @@ class SeleniumBaseEngine(BaseEngine):
         # Extract user agent
         try:
             user_agent = self.driver.execute_script("return navigator.userAgent")
-        except:
+        except Exception:
             user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
 
         # Basic headers that should be included
         headers = {
             "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/avif,image/webp,*/*;q=0.8"
+            ),
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
@@ -266,7 +273,7 @@ class SeleniumBaseEngine(BaseEngine):
         if self.driver:
             try:
                 self.driver.quit()
-            except:
+            except Exception:
                 pass
             finally:
-                self.driver = None 
+                self.driver = None

@@ -2,11 +2,10 @@
 curl_cffi engine implementation for CF-Ares.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from curl_cffi import requests
 
-from cf_ares.engines.base import BaseEngine
 from cf_ares.exceptions import RequestError
 from cf_ares.utils.fingerprint import FingerprintManager
 
@@ -44,34 +43,36 @@ class CurlEngine:
         Returns:
             requests.Session: curl_cffi session.
         """
-        # Get TLS fingerprint
-        tls_fingerprint = self.fingerprint_manager.get_tls_fingerprint(self.fingerprint)
-        
         # Create session
         session = requests.Session(
             timeout=self.timeout,
             impersonate="chrome110",  # Default to Chrome 110 impersonation
         )
-        
+
         # Set proxy if specified
         if self.proxy:
             session.proxies = {"http": self.proxy, "https": self.proxy}
-        
+
         # Set default headers
         user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
-        session.headers.update({
-            "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-        })
-        
+        session.headers.update(
+            {
+                "User-Agent": user_agent,
+                "Accept": (
+                    "text/html,application/xhtml+xml,application/xml;"
+                    "q=0.9,image/avif,image/webp,*/*;q=0.8"
+                ),
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "none",
+                "Sec-Fetch-User": "?1",
+            }
+        )
+
         return session
 
     def set_cookies(self, cookies: Dict[str, str]) -> None:
@@ -128,25 +129,25 @@ class CurlEngine:
                 "params": params,
                 "timeout": kwargs.get("timeout", self.timeout),
             }
-            
+
             # Add data or JSON if specified
             if data is not None:
                 request_kwargs["data"] = data
             if json is not None:
                 request_kwargs["json"] = json
-            
+
             # Add headers if specified
             if headers is not None:
                 request_kwargs["headers"] = headers
-            
+
             # Add additional arguments
             for key, value in kwargs.items():
                 if key not in request_kwargs:
                     request_kwargs[key] = value
-            
+
             # Make request
             response = self.session.request(method, url, **request_kwargs)
-            
+
             return response
         except Exception as e:
             raise RequestError(f"Request failed: {e}")

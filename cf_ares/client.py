@@ -5,13 +5,16 @@ Main client implementation for CF-Ares.
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 from cf_ares.engines.base import BaseEngine
 from cf_ares.engines.curl import CurlEngine
 from cf_ares.engines.selenium import SeleniumBaseEngine
 from cf_ares.engines.undetected import UndetectedEngine
-from cf_ares.exceptions import AresError, CloudflareError, CloudflareChallengeFailed, CloudflareSessionExpired
+from cf_ares.exceptions import (
+    AresError,
+    CloudflareChallengeFailed,
+)
 from cf_ares.utils.session import SessionManager
 
 
@@ -46,6 +49,7 @@ class AresResponse:
         if hasattr(self._response, "json"):
             return self._response.json()
         import json
+
         return json.loads(self.text)
 
     def __repr__(self) -> str:
@@ -74,14 +78,14 @@ class AresClient:
         Initialize AresClient.
 
         Args:
-            browser_engine: Browser engine to use. One of "seleniumbase", "undetected", "auto".
+            browser_engine: Engine. Options: "seleniumbase", "undetected", "auto".
             headless: Whether to run browser in headless mode.
             fingerprint: Browser fingerprint to use.
             proxy: Proxy to use.
             timeout: Request timeout in seconds.
             max_retries: Maximum number of retries for failed requests.
             debug: Enable debug logging.
-            chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
+            chrome_path: Path to Chrome binary. Searches default locations if not set.
             use_edge: Whether to use Edge WebDriver instead of Chrome.
         """
         self.browser_engine = browser_engine
@@ -238,8 +242,13 @@ class AresClient:
                 response = self._curl_engine.request("GET", url)
 
                 # 如果响应中包含 Cloudflare 挑战页面,则认为挑战失败
-                if "challenge" in response.text.lower() or "cloudflare" in response.text.lower():
-                    raise CloudflareChallengeFailed("Cloudflare 挑战失败,响应中包含挑战页面")
+                if (
+                    "challenge" in response.text.lower()
+                    or "cloudflare" in response.text.lower()
+                ):
+                    raise CloudflareChallengeFailed(
+                        "Cloudflare 挑战失败,响应中包含挑战页面"
+                    )
 
                 return AresResponse(response)
             except Exception as e:
@@ -250,7 +259,9 @@ class AresClient:
                 time.sleep(2)  # 等待一段时间后重试
 
         # 所有重试都失败
-        raise CloudflareChallengeFailed(f"无法通过 Cloudflare 挑战,最大重试次数已用尽: {str(last_error)}")
+        raise CloudflareChallengeFailed(
+            f"无法通过 Cloudflare 挑战,最大重试次数已用尽: {str(last_error)}"
+        )
 
     def get_session_info(self, url: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -276,7 +287,7 @@ class AresClient:
                 "cookies": cookies,
                 "headers": headers,
                 "timestamp": time.time(),
-                "url": url
+                "url": url,
             }
         else:
             # 返回所有会话信息
@@ -289,7 +300,9 @@ class AresClient:
                 }
             return result
 
-    def set_session_info(self, session_info: Dict[str, Any], url: Optional[str] = None) -> None:
+    def set_session_info(
+        self, session_info: Dict[str, Any], url: Optional[str] = None
+    ) -> None:
         """
         设置会话信息
 
@@ -352,11 +365,13 @@ class AresClient:
                 for domain, info in session_info.items():
                     if "cookies" in info and "headers" in info:
                         url = f"https://{domain}"
-                        self.set_session_info({
-                            "cookies": info["cookies"],
-                            "headers": info["headers"],
-                            "url": url
-                        })
+                        self.set_session_info(
+                            {
+                                "cookies": info["cookies"],
+                                "headers": info["headers"],
+                                "url": url,
+                            }
+                        )
 
     def _is_cloudflare_challenge(self, response) -> bool:
         """Detect if response is a Cloudflare challenge page."""
@@ -415,18 +430,28 @@ class AresClient:
         # If we already have a valid session, just use curl directly
         if self._session_manager.has_valid_session(url):
             response = self._curl_engine.request(
-                method=method, url=url, params=params,
-                data=data, json=json, headers=headers, **kwargs,
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                json=json,
+                headers=headers,
+                **kwargs,
             )
             return AresResponse(response)
 
         # First attempt: try curl directly (no browser needed for most sites)
         try:
             response = self._curl_engine.request(
-                method=method, url=url, params=params,
-                data=data, json=json, headers=headers, **kwargs,
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                json=json,
+                headers=headers,
+                **kwargs,
             )
-        except Exception as e:
+        except Exception:
             raise
 
         # If CF challenge detected, lazy-init browser and solve it
@@ -434,8 +459,13 @@ class AresClient:
             self._handle_cloudflare(url)
             # Retry with updated session cookies/headers
             response = self._curl_engine.request(
-                method=method, url=url, params=params,
-                data=data, json=json, headers=headers, **kwargs,
+                method=method,
+                url=url,
+                params=params,
+                data=data,
+                json=json,
+                headers=headers,
+                **kwargs,
             )
 
         return AresResponse(response)

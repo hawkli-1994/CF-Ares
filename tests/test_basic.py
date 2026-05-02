@@ -48,4 +48,4 @@ def test_cloudflare_bypass():
         # Replace with a known Cloudflare-protected site
         response = client.get("https://example.com")
         assert response.status_code == 200
-        assert "Cloudflare" not in response.text 
+        assert "Cloudflare" not in response.text

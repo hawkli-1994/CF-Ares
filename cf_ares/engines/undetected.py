@@ -2,16 +2,16 @@
 Undetected ChromeDriver engine implementation for CF-Ares.
 """
 
-import time
 import os
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, Optional
 
 import undetected_chromedriver as uc
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.edge.service import Service as EdgeService
 from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.edge.service import Service as EdgeService
 
 from cf_ares.engines.base import BaseEngine
 from cf_ares.exceptions import BrowserError, CloudflareError
@@ -38,9 +38,19 @@ class UndetectedEngine(BaseEngine):
         "/usr/local/bin/chromium",
         "/usr/local/bin/chromium-browser",
         # Project bin directory
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chrome"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "google-chrome"),
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chromium"),
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "bin", "chrome"
+        ),
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "bin",
+            "google-chrome",
+        ),
+        os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "bin",
+            "chromium",
+        ),
     ]
 
     # Edge WebDriver path
@@ -48,7 +58,7 @@ class UndetectedEngine(BaseEngine):
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
         "bin",
         "edgedriver_linux64",
-        "msedgedriver"
+        "msedgedriver",
     )
 
     def __init__(
@@ -68,7 +78,7 @@ class UndetectedEngine(BaseEngine):
             proxy: Proxy to use.
             timeout: Request timeout in seconds.
             fingerprint: Browser fingerprint to use.
-            chrome_path: Custom path to Chrome binary. If not provided, will search in default locations.
+            chrome_path: Path to Chrome binary. Searches defaults if not set.
             use_edge: Whether to use Edge WebDriver instead of Chrome.
         """
         super().__init__(headless, proxy, timeout, fingerprint)
@@ -84,25 +94,29 @@ class UndetectedEngine(BaseEngine):
             if self.use_edge:
                 # Get Edge WebDriver path from environment variable or use default
                 edge_driver_path = self.EDGE_DRIVER_PATH
-                
+
                 # Check if Edge WebDriver exists
                 if not os.path.exists(edge_driver_path):
-                    raise BrowserError(f"Edge WebDriver not found at {edge_driver_path}")
-                
+                    raise BrowserError(
+                        f"Edge WebDriver not found at {edge_driver_path}"
+                    )
+
                 # Create Edge options
                 options = EdgeOptions()
                 if self.headless:
                     options.add_argument("--headless")
-                
+
                 # Set user agent if fingerprint is specified
                 if self.fingerprint:
-                    user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
+                    user_agent = self.fingerprint_manager.get_user_agent(
+                        self.fingerprint
+                    )
                     options.add_argument(f"--user-agent={user_agent}")
-                
+
                 # Set proxy if specified
                 if self.proxy:
                     options.add_argument(f"--proxy-server={self.proxy}")
-                
+
                 # Add common options
                 options.add_argument("--disable-extensions")
                 options.add_argument("--disable-gpu")
@@ -110,28 +124,27 @@ class UndetectedEngine(BaseEngine):
                 options.add_argument("--no-sandbox")
                 options.add_argument("--disable-infobars")
                 options.add_argument("--disable-notifications")
-                
+
                 # Create Edge service
                 service = EdgeService(executable_path=edge_driver_path)
-                
+
                 # Create Edge driver
-                self.driver = webdriver.Edge(
-                    service=service,
-                    options=options
-                )
+                self.driver = webdriver.Edge(service=service, options=options)
             else:
                 # Prepare Chrome options
                 options = Options()
-                
+
                 # Set user agent if fingerprint is specified
                 if self.fingerprint:
-                    user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
+                    user_agent = self.fingerprint_manager.get_user_agent(
+                        self.fingerprint
+                    )
                     options.add_argument(f"--user-agent={user_agent}")
-                
+
                 # Set proxy if specified
                 if self.proxy:
                     options.add_argument(f"--proxy-server={self.proxy}")
-                
+
                 # Add common options
                 options.add_argument("--disable-extensions")
                 options.add_argument("--disable-gpu")
@@ -139,7 +152,7 @@ class UndetectedEngine(BaseEngine):
                 options.add_argument("--no-sandbox")
                 options.add_argument("--disable-infobars")
                 options.add_argument("--disable-notifications")
-                
+
                 # Set Chrome binary location
                 chrome_path = self.chrome_path
                 if not chrome_path:
@@ -149,11 +162,11 @@ class UndetectedEngine(BaseEngine):
                         if os.path.exists(path):
                             chrome_path = path
                             break
-                    
+
                 if not chrome_path:
                     # If no Chrome binary found, let undetected-chromedriver handle it
                     chrome_path = None
-                    
+
                 # Create driver
                 self.driver = uc.Chrome(
                     options=options,
@@ -161,10 +174,10 @@ class UndetectedEngine(BaseEngine):
                     use_subprocess=True,
                     browser_executable_path=chrome_path,
                 )
-            
+
             # Set timeout
             self.driver.set_page_load_timeout(self.timeout)
-            
+
             # Apply fingerprint if specified
             if self.fingerprint:
                 self._apply_fingerprint()
@@ -177,7 +190,7 @@ class UndetectedEngine(BaseEngine):
             return
 
         fingerprint = self.fingerprint_manager.get_fingerprint(self.fingerprint)
-        
+
         # Apply basic fingerprint properties
         js_script = """
         // Override screen properties
@@ -187,12 +200,12 @@ class UndetectedEngine(BaseEngine):
         Object.defineProperty(screen, 'height', {
             get: function() { return %d; }
         });
-        
+
         // Override timezone
         Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
-            get: function() { 
-                return function() { 
-                    return { timeZone: 'UTC', timeZoneOffset: %d }; 
+            get: function() {
+                return function() {
+                    return { timeZone: 'UTC', timeZoneOffset: %d };
                 }
             }
         });
@@ -201,7 +214,7 @@ class UndetectedEngine(BaseEngine):
             fingerprint.get("screenResolution", [1920, 1080])[1],
             fingerprint.get("timezoneOffset", 0),
         )
-        
+
         try:
             self.driver.execute_script(js_script)
         except Exception as e:
@@ -264,7 +277,7 @@ class UndetectedEngine(BaseEngine):
                 if self.driver.find_elements(By.CSS_SELECTOR, selector):
                     is_cloudflare = True
                     break
-            except:
+            except Exception:
                 pass
 
         if not is_cloudflare:
@@ -274,7 +287,7 @@ class UndetectedEngine(BaseEngine):
         # Wait for the challenge to be solved
         max_wait = self.timeout
         start_time = time.time()
-        
+
         while time.time() - start_time < max_wait:
             # Check if we're still on a challenge page
             still_on_challenge = False
@@ -283,26 +296,30 @@ class UndetectedEngine(BaseEngine):
                     if self.driver.find_elements(By.CSS_SELECTOR, selector):
                         still_on_challenge = True
                         break
-                except:
+                except Exception:
                     pass
-            
+
             if not still_on_challenge:
                 # Challenge completed
                 # Wait a bit more to ensure page is fully loaded
                 time.sleep(2)
                 return True
-            
+
             # Check for error messages
             try:
-                error_elem = self.driver.find_elements(By.CSS_SELECTOR, "#challenge-error-title")
+                error_elem = self.driver.find_elements(
+                    By.CSS_SELECTOR, "#challenge-error-title"
+                )
                 if error_elem:
-                    raise CloudflareError(f"Cloudflare challenge failed: {error_elem[0].text}")
-            except:
+                    raise CloudflareError(
+                        f"Cloudflare challenge failed: {error_elem[0].text}"
+                    )
+            except Exception:
                 pass
-            
+
             # Wait before checking again
             time.sleep(1)
-        
+
         # Timeout reached
         raise CloudflareError("Cloudflare challenge timed out")
 
@@ -341,13 +358,16 @@ class UndetectedEngine(BaseEngine):
         # Extract user agent
         try:
             user_agent = self.driver.execute_script("return navigator.userAgent")
-        except:
+        except Exception:
             user_agent = self.fingerprint_manager.get_user_agent(self.fingerprint)
 
         # Basic headers that should be included
         headers = {
             "User-Agent": user_agent,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,image/avif,image/webp,*/*;q=0.8"
+            ),
             "Accept-Language": "en-US,en;q=0.5",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive",
@@ -365,7 +385,7 @@ class UndetectedEngine(BaseEngine):
         if self.driver:
             try:
                 self.driver.quit()
-            except:
+            except Exception:
                 pass
             finally:
-                self.driver = None 
+                self.driver = None

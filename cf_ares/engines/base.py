@@ -3,7 +3,7 @@ Base engine interface for CF-Ares.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 class BaseEngine(ABC):
@@ -79,4 +79,4 @@ class BaseEngine(ABC):
     @abstractmethod
     def close(self) -> None:
         """Close the engine and release resources."""
-        pass 
+        pass

@@ -1,0 +1,60 @@
+site_name: CF-Ares Documentation
+site_url: https://hawkli-1994.github.io/CF-Ares/
+site_author: hawkli-1994
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+
+nav:
+  - 首页: index.md
+  - 安装指南: installation.md
+  - 快速开始:
+    - 基本使用: basic_usage.md
+    - 高级配置: advanced_usage.md
+    - 会话管理: session_management.md
+  - 深入:
+    - 架构设计: architecture.md
+    - 引擎详解: engines.md
+    - API 参考: api.md
+    - 配置参考: configuration.md
+  - 故障排查: troubleshooting.md
+  - 更新日志: changelog.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/hawkli-1994/CF-Ares
+  version:
+    provider: mike
+
+copyright: Copyright © 2025 hawkli-1994. Licensed under MIT.

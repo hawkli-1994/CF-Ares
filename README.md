@@ -1,6 +1,10 @@
 <h1 align="center">CF-Ares 🔥</h1>
 <p align="center">下一代Cloudflare对抗框架 | 智能切换浏览器引擎与高性能请求</p>
 
+[![PyPI](https://img.shields.io/pypi/v/cf-ares.svg)](https://pypi.org/project/cf-ares/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/cf-ares.svg)](https://pypi.org/project/cf-ares/)
+[![CI](https://github.com/hawkli-1994/CF-Ares/workflows/CI/badge.svg)](https://github.com/hawkli-1994/CF-Ares/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hawkli-1994.github.io/CF-Ares/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/hawkli-1994/CF-Ares/blob/main/LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 

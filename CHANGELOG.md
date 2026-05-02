@@ -7,18 +7,44 @@
 
 ## [Unreleased]
 
-### TODO
+### 新增
 
-- 修复 Chrome 135 版本兼容性问题（undetected-chromedriver 适配）
-- 准备 PyPI 发布（修复打包配置、完善文档）
-- 优化 curl_cffi 错误处理机制
-- 添加更多单元测试覆盖
+- GitHub Actions CI 工作流 (`.github/workflows/ci.yml`)
+- GitHub Pages 文档站点 (`mkdocs.yml`, `.github/workflows/pages.yml`)
+- 完整文档：架构设计、API 参考、故障排查、配置指南、引擎详解
+- 惰性浏览器引擎初始化 — `_init_browser_engine()` 只在需要 JS 挑战时调用
+- `_is_cloudflare_challenge()` 检测函数 — 准确识别 CF 挑战页面
 
-## [0.1.0] - 2024-03-04
+### 修复
+
+- `CurlEngine` 缺失 `get_cookies()`、`get_headers()`、`close()` 方法 (commit `b4287ed`)
+- `_is_cloudflare_challenge()` 误判 CF-Ray 头为挑战页面
+- `AresClient` 每次请求都初始化浏览器引擎导致 Linux 无头环境超时
+
+### 变更
+
+- `README.md` 添加 PyPI、CI、文档 badges
+- `_initialize()` 现在只创建 `CurlEngine`，浏览器引擎完全惰性
+- `_request()` 先 curl 请求，根据响应内容判断是否需要浏览器
+
+## [0.1.0] - 2026-05-02
 
 ### 新增
 
-- 初始版本发布
+- 首次发布到 PyPI
+- `AresClient` 两阶段协同架构
+- `CurlEngine` 基于 curl_cffi
+- `UndetectedEngine` 基于 undetected-chromedriver
+- `SeleniumBaseEngine` 基于 seleniumbase
+- 会话管理与会话持久化
+- 浏览器指纹模拟
+- 代理支持
+
+## [0.1.0-alpha] - 2024-03-04
+
+### 新增
+
+- 初始版本开发
 - 支持使用 SeleniumBase 和 undetected-chromedriver 突破 Cloudflare 防护
 - 支持使用 curl_cffi 进行高性能请求
 - 支持浏览器指纹管理

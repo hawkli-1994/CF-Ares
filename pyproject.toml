@@ -28,7 +28,7 @@ dependencies = [
     "seleniumbase>=4.0.0",
     "undetected-chromedriver>=3.5.0",
     "curl_cffi>=0.5.7",
-    "requests>=2.28.0",
+    "requests>=2.33.0",
 ]
 
 [project.optional-dependencies]
